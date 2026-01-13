@@ -1,87 +1,73 @@
 package com.jammit.ui.userprofile
 
-import com.jammit.data.model.Instrument
-import com.jammit.data.model.InstrumentWithLevel
-import com.jammit.data.model.MusicianLevel
 import com.jammit.data.model.User
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlin.math.*
+import com.jammit.network.RetrofitClient
+import com.jammit.repository.UserRepository
+import com.jammit.repository.ExploreRepository
 
-class UserProfileViewModel(private val userId: String) : ViewModel() {
-    private val currentUserLocation = Pair(40.7128, -74.0060) // NYC coordinates
-
-    // Mock user data - in a real app, this would fetch from a repository
-    private val mockUsers = mapOf(
-        "user1" to User(
-            id = "user1",
-            username = "Alice Johnson",
-            instruments = listOf(
-                InstrumentWithLevel(Instrument.ALL_INSTRUMENTS[0], MusicianLevel.ADVANCED), // Guitar
-                InstrumentWithLevel(Instrument.ALL_INSTRUMENTS[4], MusicianLevel.INTERMEDIATE) // Violin
-            ),
-            latitude = 40.7282,
-            longitude = -73.9942
-        ),
-        "user2" to User(
-            id = "user2",
-            username = "Bob Smith",
-            instruments = listOf(
-                InstrumentWithLevel(Instrument.ALL_INSTRUMENTS[1], MusicianLevel.PROFESSIONAL), // Piano
-                InstrumentWithLevel(Instrument.ALL_INSTRUMENTS[3], MusicianLevel.ADVANCED) // Bass
-            ),
-            latitude = 40.7589,
-            longitude = -73.9851
-        ),
-        "user3" to User(
-            id = "user3",
-            username = "Charlie Brown",
-            instruments = listOf(
-                InstrumentWithLevel(Instrument.ALL_INSTRUMENTS[2], MusicianLevel.BEGINNER) // Drums
-            ),
-            latitude = 40.6892,
-            longitude = -74.0445
-        ),
-        "user4" to User(
-            id = "user4",
-            username = "Diana Prince",
-            instruments = listOf(
-                InstrumentWithLevel(Instrument.ALL_INSTRUMENTS[5], MusicianLevel.INTERMEDIATE), // Saxophone
-                InstrumentWithLevel(Instrument.ALL_INSTRUMENTS[6], MusicianLevel.ADVANCED) // Trumpet
-            ),
-            latitude = 40.7614,
-            longitude = -73.9776
-        ),
-        "user5" to User(
-            id = "user5",
-            username = "Eve Wilson",
-            instruments = listOf(
-                InstrumentWithLevel(Instrument.ALL_INSTRUMENTS[8], MusicianLevel.PROFESSIONAL), // Voice
-                InstrumentWithLevel(Instrument.ALL_INSTRUMENTS[9], MusicianLevel.BEGINNER) // Keyboard
-            ),
-            latitude = 40.7489,
-            longitude = -73.9680
-        )
-    )
-
+class UserProfileViewModel(
+    private val userId: String,
+    private val userRepository: UserRepository = UserRepository(RetrofitClient.apiService),
+    private val exploreRepository: ExploreRepository = ExploreRepository(RetrofitClient.apiService),
+    private val currentUserId: String
+) : ViewModel() {
     private val _user = MutableStateFlow<User?>(null)
     val user: StateFlow<User?> = _user.asStateFlow()
 
     private val _distance = MutableStateFlow<Double?>(null)
     val distance: StateFlow<Double?> = _distance.asStateFlow()
 
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
     init {
-        _user.value = mockUsers[userId]
-        _user.value?.let { user ->
-            _distance.value = calculateDistance(
-                currentUserLocation.first,
-                currentUserLocation.second,
-                user.latitude,
-                user.longitude
-            )
+        loadUser()
+    }
+
+    private fun loadUser() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _error.value = null
+
+            userRepository.getUser(userId)
+                .onSuccess { loadedUser ->
+                    _user.value = loadedUser
+                    calculateDistance(loadedUser)
+                    _isLoading.value = false
+                }
+                .onFailure { exception ->
+                    _error.value = exception.message ?: "Failed to load user"
+                    _isLoading.value = false
+                }
         }
+    }
+
+    private suspend fun calculateDistance(targetUser: User) {
+        // Get current user location
+        userRepository.getUser(currentUserId)
+            .onSuccess { currentUser ->
+                // Check if both users have valid coordinates (not 0.0, which is the default)
+                if (currentUser.latitude != 0.0 && currentUser.longitude != 0.0 &&
+                    targetUser.latitude != 0.0 && targetUser.longitude != 0.0
+                ) {
+                    _distance.value = calculateDistance(
+                        currentUser.latitude,
+                        currentUser.longitude,
+                        targetUser.latitude,
+                        targetUser.longitude
+                    )
+                }
+            }
     }
 
     private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
@@ -95,6 +81,10 @@ class UserProfileViewModel(private val userId: String) : ViewModel() {
                 sin(dLon / 2) * sin(dLon / 2)
         val c = 2 * atan2(sqrt(a), sqrt(1 - a))
         return earthRadiusKm * c
+    }
+
+    fun clearError() {
+        _error.value = null
     }
 }
 

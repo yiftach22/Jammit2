@@ -1,14 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Instrument } from '../../entities/instrument.entity';
 
 @Injectable()
-export class InstrumentsService {
+export class InstrumentsService implements OnModuleInit {
   constructor(
     @InjectRepository(Instrument)
     private instrumentRepository: Repository<Instrument>,
   ) {}
+
+  async onModuleInit() {
+    // Ensure instruments exist (prevents empty list + avoids Android fallback IDs)
+    await this.seedInstruments();
+  }
 
   async findAll(): Promise<Instrument[]> {
     return this.instrumentRepository.find();

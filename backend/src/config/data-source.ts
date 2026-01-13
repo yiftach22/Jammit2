@@ -1,6 +1,9 @@
-import { TypeOrmModuleOptions } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import * as dotenv from 'dotenv';
 
-export const getDatabaseConfig = (): TypeOrmModuleOptions => ({
+dotenv.config();
+
+export const AppDataSource = new DataSource({
   type: 'postgres',
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5432', 10),
@@ -9,6 +12,7 @@ export const getDatabaseConfig = (): TypeOrmModuleOptions => ({
   database: process.env.DB_NAME || 'jammit',
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   migrations: [__dirname + '/../migrations/*{.ts,.js}'],
-  synchronize: process.env.NODE_ENV !== 'production', // Auto-sync schema in dev
-  logging: process.env.NODE_ENV === 'development',
+  migrationsTableName: 'migrations',
+  synchronize: false,
+  logging: true,
 });

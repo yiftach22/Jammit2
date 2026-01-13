@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../../entities/user.entity';
@@ -75,9 +80,17 @@ export class UsersService {
   async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
     const user = await this.findOne(id);
 
-    if (updateUserDto.username) {
+    // Check username uniqueness if username is being updated
+    if (updateUserDto.username && updateUserDto.username !== user.username) {
+      const existingUser = await this.userRepository.findOne({
+        where: { username: updateUserDto.username },
+      });
+      if (existingUser && existingUser.id !== id) {
+        throw new ConflictException('Username already exists');
+      }
       user.username = updateUserDto.username;
     }
+
     if (updateUserDto.latitude !== undefined) {
       user.latitude = updateUserDto.latitude;
     }
@@ -85,34 +98,53 @@ export class UsersService {
       user.longitude = updateUserDto.longitude;
     }
 
-    await this.userRepository.save(user);
+    try {
+      await this.userRepository.save(user);
+    } catch (error: any) {
+      // Handle database constraint violations
+      if (error.code === '23505') {
+        // PostgreSQL unique constraint violation
+        if (error.detail?.includes('username')) {
+          throw new ConflictException('Username already exists');
+        }
+        if (error.detail?.includes('email')) {
+          throw new ConflictException('Email already exists');
+        }
+      }
+      console.error('Error updating user:', error);
+      throw new BadRequestException(
+        `Failed to update user: ${error.message || 'Unknown error'}`,
+      );
+    }
 
     // Update instruments if provided
-    if (updateUserDto.instruments) {
+    if (updateUserDto.instruments !== undefined) {
       // Remove existing instruments
       await this.instrumentWithLevelRepository.delete({ userId: id });
 
-      // Create new instruments
-      const instrumentsWithLevels = await Promise.all(
-        updateUserDto.instruments.map(async (iwlDto) => {
-          const instrument = await this.instrumentsService.findOne(
-            iwlDto.instrumentId,
-          );
-          if (!instrument) {
-            throw new NotFoundException(
-              `Instrument with ID ${iwlDto.instrumentId} not found`,
+      // Create new instruments (can be empty array)
+      if (updateUserDto.instruments.length > 0) {
+        const instrumentsWithLevels = await Promise.all(
+          updateUserDto.instruments.map(async (iwlDto) => {
+            const instrument = await this.instrumentsService.findOne(
+              iwlDto.instrumentId,
             );
-          }
+            if (!instrument) {
+              throw new NotFoundException(
+                `Instrument with ID ${iwlDto.instrumentId} not found`,
+              );
+            }
 
-          return this.instrumentWithLevelRepository.create({
-            userId: id,
-            instrumentId: iwlDto.instrumentId,
-            level: iwlDto.level,
-          });
-        }),
-      );
+            return this.instrumentWithLevelRepository.create({
+              userId: id,
+              instrumentId: iwlDto.instrumentId,
+              level: iwlDto.level,
+            });
+          }),
+        );
 
-      await this.instrumentWithLevelRepository.save(instrumentsWithLevels);
+        await this.instrumentWithLevelRepository.save(instrumentsWithLevels);
+      }
     }
 
     return this.findOne(id);

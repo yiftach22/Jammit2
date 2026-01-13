@@ -1,12 +1,19 @@
-import { IsString, IsOptional, IsArray, ValidateNested } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsArray,
+  ValidateNested,
+  IsEnum,
+  IsUUID,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { MusicianLevel } from '../entities/musician-level.enum';
 
 export class InstrumentWithLevelDto {
-  @IsString()
+  @IsUUID()
   instrumentId: string;
 
-  @IsString()
+  @IsEnum(MusicianLevel)
   level: MusicianLevel;
 }
 

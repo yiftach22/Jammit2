@@ -1,46 +1,50 @@
 package com.jammit.ui.chats
 
 import com.jammit.data.model.Chat
-import com.jammit.data.model.User
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import com.jammit.network.RetrofitClient
+import com.jammit.repository.ChatsRepository
 
-class ChatsViewModel : ViewModel() {
-    // Mock chats data
-    private val _chats = MutableStateFlow<List<Chat>>(
-        listOf(
-            Chat(
-                id = "chat1",
-                otherUserId = "user1",
-                otherUsername = "Alice Johnson",
-                lastMessage = "Hey! Would you like to jam sometime?",
-                lastMessageTimestamp = System.currentTimeMillis() - 3600000 // 1 hour ago
-            ),
-            Chat(
-                id = "chat2",
-                otherUserId = "user2",
-                otherUsername = "Bob Smith",
-                lastMessage = "Sure, sounds great!",
-                lastMessageTimestamp = System.currentTimeMillis() - 7200000 // 2 hours ago
-            ),
-            Chat(
-                id = "chat3",
-                otherUserId = "user3",
-                otherUsername = "Charlie Brown",
-                lastMessage = "Thanks for the session yesterday!",
-                lastMessageTimestamp = System.currentTimeMillis() - 86400000 // 1 day ago
-            ),
-            Chat(
-                id = "chat4",
-                otherUserId = "user4",
-                otherUsername = "Diana Prince",
-                lastMessage = "See you next week!",
-                lastMessageTimestamp = System.currentTimeMillis() - 172800000 // 2 days ago
-            )
-        )
-    )
+class ChatsViewModel(
+    private val chatsRepository: ChatsRepository = ChatsRepository(RetrofitClient.apiService),
+    private val currentUserId: String
+) : ViewModel() {
+    private val _chats = MutableStateFlow<List<Chat>>(emptyList())
     val chats: StateFlow<List<Chat>> = _chats.asStateFlow()
+
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
+    init {
+        loadChats()
+    }
+
+    fun loadChats() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _error.value = null
+            chatsRepository.getChats(currentUserId)
+                .onSuccess { chatsList ->
+                    _chats.value = chatsList
+                    _isLoading.value = false
+                }
+                .onFailure { exception ->
+                    _error.value = exception.message ?: "Failed to load chats"
+                    _isLoading.value = false
+                }
+        }
+    }
+
+    fun clearError() {
+        _error.value = null
+    }
 }
 

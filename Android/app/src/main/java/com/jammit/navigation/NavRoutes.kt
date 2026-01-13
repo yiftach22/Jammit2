@@ -4,6 +4,18 @@ sealed class NavRoute(val route: String) {
     // Authentication
     object Login : NavRoute("login")
     object Register : NavRoute("register")
+    
+    data class RegisterUsername(val userId: String) : NavRoute("register_username/{userId}") {
+        companion object {
+            fun createRoute(userId: String) = "register_username/$userId"
+        }
+    }
+    
+    data class RegisterInstruments(val userId: String) : NavRoute("register_instruments/{userId}") {
+        companion object {
+            fun createRoute(userId: String) = "register_instruments/$userId"
+        }
+    }
 
     // Main tabs
     object Profile : NavRoute("profile")

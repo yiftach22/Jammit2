@@ -17,6 +17,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.jammit.ui.auth.LoginScreen
 import com.jammit.ui.auth.RegisterScreen
+import com.jammit.ui.auth.RegisterUsernameScreen
+import com.jammit.ui.auth.RegisterInstrumentsScreen
 import com.jammit.ui.chatdetail.ChatDetailScreen
 import com.jammit.ui.chats.ChatsScreen
 import com.jammit.ui.explore.ExploreScreen
@@ -53,7 +55,7 @@ fun MainNavigation(
             // Authentication
             composable(NavRoute.Login.route) {
                 LoginScreen(
-                    onLoginSuccess = {
+                    onLoginSuccess = { userId ->
                         navController.navigate(NavRoute.Profile.route) {
                             popUpTo(NavRoute.Login.route) { inclusive = true }
                         }
@@ -66,10 +68,8 @@ fun MainNavigation(
 
             composable(NavRoute.Register.route) {
                 RegisterScreen(
-                    onRegisterSuccess = {
-                        navController.navigate(NavRoute.Profile.route) {
-                            popUpTo(NavRoute.Login.route) { inclusive = true }
-                        }
+                    onRegisterSuccess = { registrationData ->
+                        navController.navigate("register_username?data=${java.net.URLEncoder.encode(registrationData, "UTF-8")}")
                     },
                     onNavigateToLogin = {
                         navController.popBackStack()
@@ -77,9 +77,49 @@ fun MainNavigation(
                 )
             }
 
+            composable(
+                route = "register_username?data={data}",
+                arguments = listOf(navArgument("data") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val registrationData = backStackEntry.arguments?.getString("data") ?: return@composable
+                RegisterUsernameScreen(
+                    registrationData = java.net.URLDecoder.decode(registrationData, "UTF-8"),
+                    onNext = { updatedData ->
+                        navController.navigate("register_instruments?data=${java.net.URLEncoder.encode(updatedData, "UTF-8")}")
+                    },
+                    onBack = {
+                        navController.popBackStack()
+                    }
+                )
+            }
+
+            composable(
+                route = "register_instruments?data={data}",
+                arguments = listOf(navArgument("data") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val registrationData = backStackEntry.arguments?.getString("data") ?: return@composable
+                RegisterInstrumentsScreen(
+                    registrationData = java.net.URLDecoder.decode(registrationData, "UTF-8"),
+                    onComplete = { userId ->
+                        navController.navigate(NavRoute.Profile.route) {
+                            popUpTo(NavRoute.Login.route) { inclusive = true }
+                        }
+                    },
+                    onBack = {
+                        navController.popBackStack()
+                    }
+                )
+            }
+
             // Main Tabs
             composable(NavRoute.Profile.route) {
-                ProfileScreen()
+                ProfileScreen(
+                    onLogout = {
+                        navController.navigate(NavRoute.Login.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
+                        }
+                    }
+                )
             }
 
             composable(NavRoute.Explore.route) {

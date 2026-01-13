@@ -17,8 +17,11 @@ export class User {
   @Column({ unique: true })
   username: string;
 
-  @Column({ nullable: true })
+  @Column({ unique: true, nullable: true })
   email: string;
+
+  @Column({ nullable: true })
+  password: string;
 
   @Column({ nullable: true, name: 'profile_picture_url' })
   profilePictureUrl: string;

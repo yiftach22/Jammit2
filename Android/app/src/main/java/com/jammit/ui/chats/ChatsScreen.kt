@@ -11,11 +11,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jammit.data.model.Chat
 import java.text.SimpleDateFormat
 import java.util.*
@@ -24,9 +24,20 @@ import java.util.*
 @Composable
 fun ChatsScreen(
     onChatClick: (String) -> Unit,
-    viewModel: ChatsViewModel = viewModel()
 ) {
-    val chats by viewModel.chats.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val userId = remember { com.jammit.data.SessionManager.getUserId(context) }
+    if (userId.isNullOrBlank()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("You must be logged in to view chats.")
+        }
+        return
+    }
+
+    val chatsViewModel = remember(userId) { ChatsViewModel(currentUserId = userId) }
+    val chats by chatsViewModel.chats.collectAsState()
+    val isLoading by chatsViewModel.isLoading.collectAsState()
+    val error by chatsViewModel.error.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize()) {
         Text(
@@ -35,28 +46,50 @@ fun ChatsScreen(
             modifier = Modifier.padding(16.dp)
         )
 
-        if (chats.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "No chats yet",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+        when {
+            isLoading -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(chats, key = { it.id }) { chat ->
-                    ChatListItem(
-                        chat = chat,
-                        onClick = { onChatClick(chat.id) }
+            error != null -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Error loading chats")
+                        Text(error!!, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+            chats.isEmpty() -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No chats yet",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+            else -> {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(chats, key = { it.id }) { chat ->
+                        ChatListItem(
+                            chat = chat,
+                            onClick = { onChatClick(chat.id) }
+                        )
+                    }
                 }
             }
         }

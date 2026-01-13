@@ -12,13 +12,24 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
-    onLoginSuccess: () -> Unit,
+    onLoginSuccess: (String) -> Unit,
     onNavigateToRegister: () -> Unit,
     viewModel: AuthViewModel = viewModel()
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val authViewModel = remember(viewModel) {
+        AuthViewModel(context = context)
+    }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
+
+    LaunchedEffect(error) {
+        if (error != null) {
+            // Error will be displayed in UI
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -55,8 +66,23 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Error message
+        error?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+            )
+        }
+
         Button(
-            onClick = { viewModel.loginWithEmail(email, password, onLoginSuccess) },
+            onClick = {
+                authViewModel.loginWithEmail(email.trim(), password) { userId ->
+                    onLoginSuccess(userId)
+                }
+            },
             modifier = Modifier.fillMaxWidth(),
             enabled = !isLoading && email.isNotBlank() && password.isNotBlank()
         ) {
@@ -73,7 +99,10 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedButton(
-            onClick = { viewModel.loginWithGoogle(onLoginSuccess) },
+            onClick = { 
+                // TODO: Implement Google Sign-In token retrieval
+                authViewModel.loginWithGoogle("mock_token") { /* TODO: Handle Google login */ } 
+            },
             modifier = Modifier.fillMaxWidth(),
             enabled = !isLoading
         ) {

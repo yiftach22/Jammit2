@@ -12,14 +12,17 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterScreen(
-    onRegisterSuccess: () -> Unit,
+    onRegisterSuccess: (String) -> Unit,
     onNavigateToLogin: () -> Unit,
     viewModel: AuthViewModel = viewModel()
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val authViewModel = remember { AuthViewModel(context = context) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
-    val isLoading by viewModel.isLoading.collectAsState()
+    val isLoading by authViewModel.isLoading.collectAsState()
+    val error by authViewModel.error.collectAsState()
 
     Column(
         modifier = Modifier
@@ -67,8 +70,24 @@ fun RegisterScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Error message
+        error?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+            )
+        }
+
         Button(
-            onClick = { viewModel.register(email, password, onRegisterSuccess) },
+            onClick = {
+                val trimmedEmail = email.trim()
+                authViewModel.register(trimmedEmail, password) {
+                    onRegisterSuccess("$trimmedEmail|$password") // Pass email and password encoded
+                }
+            },
             modifier = Modifier.fillMaxWidth(),
             enabled = !isLoading && email.isNotBlank() && password.isNotBlank() && password == confirmPassword
         ) {

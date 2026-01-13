@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.jammit.data.SessionManager
 import com.jammit.data.model.Instrument
 import com.jammit.data.model.InstrumentWithLevel
 import com.jammit.data.model.MusicianLevel
@@ -20,19 +21,60 @@ import com.jammit.data.model.MusicianLevel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
+    onLogout: () -> Unit,
     viewModel: ProfileViewModel = viewModel()
 ) {
-    val currentUser by viewModel.currentUser.collectAsState()
-    val isSaving by viewModel.isSaving.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val userId = remember { SessionManager.getUserId(context) }
+    if (userId.isNullOrBlank()) {
+        // No session -> go to login
+        LaunchedEffect(Unit) { onLogout() }
+        return
+    }
+    val profileViewModel = remember(userId) {
+        ProfileViewModel(currentUserId = userId)
+    }
+    val currentUser by profileViewModel.currentUser.collectAsState()
+    val isSaving by profileViewModel.isSaving.collectAsState()
+    val isLoading by profileViewModel.isLoading.collectAsState()
+    val error by profileViewModel.error.collectAsState()
 
-    var editedUsername by remember { mutableStateOf(currentUser.username) }
-    var editedInstruments by remember { mutableStateOf(currentUser.instruments.toMutableList()) }
+    var editedUsername by remember { mutableStateOf("") }
+    val editedInstruments = remember { mutableStateListOf<com.jammit.data.model.InstrumentWithLevel>() }
     var showInstrumentDialog by remember { mutableStateOf(false) }
     var editingInstrumentIndex by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(currentUser) {
-        editedUsername = currentUser.username
-        editedInstruments = currentUser.instruments.toMutableList()
+        currentUser?.let {
+            editedUsername = it.username
+            editedInstruments.clear()
+            editedInstruments.addAll(it.instruments)
+        }
+    }
+
+    if (isLoading && currentUser == null) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
+    if (currentUser == null) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Failed to load profile")
+                error?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+        return
     }
 
     Column(
@@ -129,15 +171,26 @@ fun ProfileScreen(
 
         Spacer(modifier = Modifier.height(32.dp))
 
+        // Error message
+        error?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+        }
+
         // Save Button
         Button(
             onClick = {
-                viewModel.updateUsername(editedUsername)
-                viewModel.updateInstruments(editedInstruments.toList())
-                viewModel.saveProfile()
+                currentUser?.let { user ->
+                    profileViewModel.updateUsername(editedUsername)
+                    profileViewModel.updateInstruments(editedInstruments.toList())
+                    profileViewModel.saveProfile()
+                }
             },
             modifier = Modifier.fillMaxWidth(),
-            enabled = !isSaving
+            enabled = !isSaving && currentUser != null
         ) {
             if (isSaving) {
                 CircularProgressIndicator(
@@ -148,12 +201,27 @@ fun ProfileScreen(
                 Text("Save Profile")
             }
         }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedButton(
+            onClick = {
+                SessionManager.clearSession(context)
+                onLogout()
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isSaving
+        ) {
+            Text("Log out")
+        }
     }
 
     // Instrument Selection Dialog
+    val availableInstruments by profileViewModel.availableInstruments.collectAsState()
     if (showInstrumentDialog) {
         InstrumentSelectionDialog(
             existingInstruments = editedInstruments.map { it.instrument }.toSet(),
+            availableInstruments = availableInstruments,
             onDismiss = { showInstrumentDialog = false },
             onConfirm = { instrument ->
                 editedInstruments.add(InstrumentWithLevel(instrument, MusicianLevel.BEGINNER))
@@ -182,10 +250,11 @@ fun ProfileScreen(
 @Composable
 fun InstrumentSelectionDialog(
     existingInstruments: Set<Instrument>,
+    availableInstruments: List<Instrument>,
     onDismiss: () -> Unit,
     onConfirm: (Instrument) -> Unit
 ) {
-    val availableInstruments = Instrument.ALL_INSTRUMENTS.filter { it !in existingInstruments }
+    val filteredInstruments = availableInstruments.filter { it !in existingInstruments }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -195,10 +264,10 @@ fun InstrumentSelectionDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (availableInstruments.isEmpty()) {
+                if (filteredInstruments.isEmpty()) {
                     Text("All instruments have been added")
                 } else {
-                    availableInstruments.forEach { instrument ->
+                    filteredInstruments.forEach { instrument ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             onClick = { onConfirm(instrument) }

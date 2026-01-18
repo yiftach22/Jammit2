@@ -22,6 +22,9 @@ sealed class NavRoute(val route: String) {
     object Explore : NavRoute("explore")
     object Chats : NavRoute("chats")
 
+    // Profile edits
+    object EditInstruments : NavRoute("edit_instruments")
+
     // Detail screens
     data class UserProfile(val userId: String) : NavRoute("user_profile/{userId}") {
         companion object {

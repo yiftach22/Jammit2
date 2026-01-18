@@ -1,5 +1,7 @@
 package com.jammit.network
 
+import com.jammit.BuildConfig
+import android.os.Build
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -7,8 +9,31 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
-    private const val BASE_URL = "http://10.0.2.2:3000/" // Android emulator localhost
-    // For physical device, use your computer's IP: "http://192.168.x.x:3000/"
+    private fun isEmulator(): Boolean {
+        val fingerprint = Build.FINGERPRINT
+        val model = Build.MODEL
+        val manufacturer = Build.MANUFACTURER
+        val brand = Build.BRAND
+        val device = Build.DEVICE
+        val product = Build.PRODUCT
+
+        return fingerprint.startsWith("generic") ||
+            fingerprint.lowercase().contains("vbox") ||
+            fingerprint.lowercase().contains("test-keys") ||
+            model.contains("google_sdk") ||
+            model.contains("Emulator") ||
+            model.contains("Android SDK built for x86") ||
+            manufacturer.contains("Genymotion") ||
+            (brand.startsWith("generic") && device.startsWith("generic")) ||
+            product == "google_sdk"
+    }
+
+    private val baseUrl: String =
+        if (isEmulator()) {
+            "http://10.0.2.2:3000/" // Android Studio emulator -> host machine
+        } else {
+            "http://${BuildConfig.DEV_SERVER_HOST}:3000/" // Physical device -> your Mac LAN IP
+        }
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
@@ -22,7 +47,7 @@ object RetrofitClient {
         .build()
 
     private val retrofit = Retrofit.Builder()
-        .baseUrl(BASE_URL)
+        .baseUrl(baseUrl)
         .client(okHttpClient)
         .addConverterFactory(GsonConverterFactory.create())
         .build()

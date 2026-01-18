@@ -22,6 +22,7 @@ import com.jammit.ui.auth.RegisterInstrumentsScreen
 import com.jammit.ui.chatdetail.ChatDetailScreen
 import com.jammit.ui.chats.ChatsScreen
 import com.jammit.ui.explore.ExploreScreen
+import com.jammit.ui.instruments.EditInstrumentsScreen
 import com.jammit.ui.profile.ProfileScreen
 import com.jammit.ui.userprofile.UserProfileScreen
 
@@ -119,6 +120,10 @@ fun MainNavigation(
                             popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
                         }
                     }
+                    ,
+                    onEditInstruments = {
+                        navController.navigate(NavRoute.EditInstruments.route)
+                    }
                 )
             }
 
@@ -135,6 +140,13 @@ fun MainNavigation(
                     onChatClick = { chatId ->
                         navController.navigate(NavRoute.ChatDetail.createRoute(chatId))
                     }
+                )
+            }
+
+            composable(NavRoute.EditInstruments.route) {
+                EditInstrumentsScreen(
+                    onBack = { navController.popBackStack() },
+                    onSaved = { navController.popBackStack() },
                 )
             }
 

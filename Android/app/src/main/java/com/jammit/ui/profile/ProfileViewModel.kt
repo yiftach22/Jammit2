@@ -16,7 +16,7 @@ import com.jammit.repository.InstrumentsRepository
 class ProfileViewModel(
     private val userRepository: UserRepository = UserRepository(RetrofitClient.apiService),
     private val instrumentsRepository: InstrumentsRepository = InstrumentsRepository(RetrofitClient.apiService),
-    private val currentUserId: String = "current_user" // TODO: Get from auth/session
+    private val currentUserId: String
 ) : ViewModel() {
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()

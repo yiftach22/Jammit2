@@ -14,6 +14,10 @@ android {
         versionCode = 1
         versionName = "1.0"
 
+        // Used for physical devices (must be reachable from the phone on the same Wi‑Fi)
+        // Emulator will automatically use 10.0.2.2 instead.
+        buildConfigField("String", "DEV_SERVER_HOST", "\"192.168.10.5\"")
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
@@ -38,6 +42,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.5"

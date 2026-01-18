@@ -3,7 +3,10 @@
 package com.jammit.ui.explore
 
 import android.Manifest
+import android.content.Intent
+import android.location.LocationManager
 import android.content.pm.PackageManager
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -19,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.content.getSystemService
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
@@ -59,6 +63,19 @@ fun ExploreScreen(
     }
     var requestedOnce by remember { mutableStateOf(false) }
     var locationError by remember { mutableStateOf<String?>(null) }
+    var isLocationEnabled by remember { mutableStateOf(isSystemLocationEnabled(context)) }
+
+    val openLocationSettingsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+    ) {
+        // Re-check after returning from Settings
+        isLocationEnabled = isSystemLocationEnabled(context)
+        if (!isLocationEnabled) {
+            locationError = "Location is turned off. Please enable it to explore nearby musicians."
+        } else {
+            locationError = null
+        }
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions(),
@@ -73,6 +90,7 @@ fun ExploreScreen(
 
     // Ask for permission when entering Explore
     LaunchedEffect(Unit) {
+        isLocationEnabled = isSystemLocationEnabled(context)
         if (!locationPermissionGranted) {
             // Small delay to avoid launching before Activity is ready (prevents some device crashes)
             delay(150)
@@ -91,6 +109,11 @@ fun ExploreScreen(
     // Once permission is granted, fetch & save location (one-shot on entry)
     LaunchedEffect(locationPermissionGranted) {
         if (!locationPermissionGranted) return@LaunchedEffect
+        isLocationEnabled = isSystemLocationEnabled(context)
+        if (!isLocationEnabled) {
+            locationError = "Location is turned off. Please enable it to explore nearby musicians."
+            return@LaunchedEffect
+        }
         val loc = withTimeoutOrNull(6000) { getCurrentLocationOrNull(context) }
         if (loc == null) {
             locationError = "Couldn't get your location. Please try again."
@@ -124,6 +147,34 @@ fun ExploreScreen(
                     },
                 ) {
                     Text("Allow location")
+                }
+            }
+        }
+        return
+    }
+
+    if (!isLocationEnabled) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(24.dp),
+            ) {
+                Text(
+                    text = "Location is turned off. Please enable it to explore nearby musicians.",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = {
+                        openLocationSettingsLauncher.launch(
+                            Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS),
+                        )
+                    },
+                ) {
+                    Text("Turn on location")
                 }
             }
         }
@@ -318,6 +369,16 @@ private fun hasLocationPermission(context: android.content.Context): Boolean {
             context,
             Manifest.permission.ACCESS_COARSE_LOCATION,
         ) == PackageManager.PERMISSION_GRANTED
+}
+
+private fun isSystemLocationEnabled(context: android.content.Context): Boolean {
+    val lm = context.getSystemService<LocationManager>() ?: return false
+    return try {
+        lm.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
+            lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+    } catch (e: Throwable) {
+        false
+    }
 }
 
 private suspend fun getCurrentLocationOrNull(context: android.content.Context): Pair<Double, Double>? {

@@ -9,15 +9,20 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import com.jammit.data.SessionManager
 import com.jammit.data.model.Instrument
-import com.jammit.data.model.InstrumentWithLevel
 import com.jammit.data.model.MusicianLevel
 import com.jammit.network.RetrofitClient
 import com.jammit.repository.AuthRepository
 import com.jammit.repository.InstrumentsRepository
+import com.jammit.ui.instruments.UserInstrument
 
-data class InstrumentRow(
-    val instrument: Instrument? = null,
-    val level: MusicianLevel? = null
+data class RegisterInstrumentsUiState(
+    val catalog: List<Instrument> = emptyList(),
+    val selected: List<UserInstrument> = emptyList(),
+    val searchQuery: String = "",
+    val showPicker: Boolean = false,
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val showValidationError: Boolean = false,
 )
 
 class RegisterInstrumentsViewModel(
@@ -28,17 +33,8 @@ class RegisterInstrumentsViewModel(
     private val authRepository: AuthRepository = AuthRepository(RetrofitClient.apiService),
     private val instrumentsRepository: InstrumentsRepository = InstrumentsRepository(RetrofitClient.apiService)
 ) : ViewModel() {
-    private val _instrumentRows = MutableStateFlow<MutableList<InstrumentRow>>(mutableListOf(InstrumentRow()))
-    val instrumentRows: StateFlow<List<InstrumentRow>> = _instrumentRows.asStateFlow()
-
-    private val _availableInstruments = MutableStateFlow<List<Instrument>>(emptyList())
-    val availableInstruments: StateFlow<List<Instrument>> = _availableInstruments.asStateFlow()
-
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
-
-    private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error.asStateFlow()
+    private val _uiState = MutableStateFlow(RegisterInstrumentsUiState())
+    val uiState: StateFlow<RegisterInstrumentsUiState> = _uiState.asStateFlow()
 
     init {
         loadInstruments()
@@ -46,54 +42,69 @@ class RegisterInstrumentsViewModel(
 
     private fun loadInstruments() {
         viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             instrumentsRepository.getInstruments()
                 .onSuccess { instruments ->
-                    _availableInstruments.value = instruments
-                    if (instruments.isEmpty()) {
-                        _error.value = "No instruments found on server. Please try again."
-                    }
+                    _uiState.value =
+                        _uiState.value.copy(
+                            catalog = instruments,
+                            isLoading = false,
+                            error = if (instruments.isEmpty()) "No instruments found on server. Please try again." else null,
+                        )
                 }
                 .onFailure { exception ->
-                    _availableInstruments.value = emptyList()
-                    _error.value = exception.message ?: "Failed to load instruments"
+                    _uiState.value =
+                        _uiState.value.copy(
+                            catalog = emptyList(),
+                            isLoading = false,
+                            error = exception.message ?: "Failed to load instruments",
+                        )
                 }
         }
     }
 
-    fun addRow() {
-        _instrumentRows.value = (_instrumentRows.value + InstrumentRow()).toMutableList()
+    fun openPicker() {
+        _uiState.value = _uiState.value.copy(showPicker = true, showValidationError = false)
     }
 
-    fun removeRow(index: Int) {
-        val updated = _instrumentRows.value.toMutableList()
-        updated.removeAt(index)
-        _instrumentRows.value = updated
+    fun closePicker() {
+        _uiState.value = _uiState.value.copy(showPicker = false, searchQuery = "")
     }
 
-    fun updateInstrument(index: Int, instrument: Instrument) {
-        val updated = _instrumentRows.value.toMutableList()
-        updated[index] = updated[index].copy(instrument = instrument)
-        _instrumentRows.value = updated
+    fun updateSearchQuery(query: String) {
+        _uiState.value = _uiState.value.copy(searchQuery = query)
     }
 
-    fun updateLevel(index: Int, level: MusicianLevel) {
-        val updated = _instrumentRows.value.toMutableList()
-        updated[index] = updated[index].copy(level = level)
-        _instrumentRows.value = updated
+    fun addInstrument(instrumentId: String, level: MusicianLevel) {
+        val current = _uiState.value
+        if (current.selected.any { it.instrumentId == instrumentId }) return
+        _uiState.value =
+            current.copy(
+                selected = current.selected + UserInstrument(instrumentId, level),
+                showValidationError = false,
+            )
+    }
+
+    fun removeInstrument(instrumentId: String) {
+        val current = _uiState.value
+        _uiState.value = current.copy(selected = current.selected.filterNot { it.instrumentId == instrumentId })
     }
 
     fun completeRegistration(onSuccess: (String) -> Unit) {
         viewModelScope.launch {
-            _isLoading.value = true
-            _error.value = null
+            val state = _uiState.value
+            if (state.selected.isEmpty()) {
+                _uiState.value = state.copy(showValidationError = true)
+                return@launch
+            }
 
-            // Convert rows to InstrumentWithLevelRequest list (filter out incomplete rows)
-            val instruments = _instrumentRows.value
-                .filter { it.instrument != null && it.level != null }
-                .map { 
+            _uiState.value = state.copy(isLoading = true, error = null)
+
+            val instruments =
+                state.selected.map {
                     com.jammit.network.InstrumentWithLevelRequest(
-                        instrumentId = it.instrument!!.id,
-                        level = it.level!!.name
+                        instrumentId = it.instrumentId,
+                        level = it.level.name,
                     )
                 }
 
@@ -105,17 +116,20 @@ class RegisterInstrumentsViewModel(
                         SessionManager.saveToken(it, token)
                         SessionManager.saveUserId(it, userId)
                     }
-                    _isLoading.value = false
+                    _uiState.value = _uiState.value.copy(isLoading = false)
                     onSuccess(userId)
                 }
                 .onFailure { exception ->
-                    _error.value = exception.message ?: "Failed to complete registration"
-                    _isLoading.value = false
+                    _uiState.value =
+                        _uiState.value.copy(
+                            error = exception.message ?: "Failed to complete registration",
+                            isLoading = false,
+                        )
                 }
         }
     }
 
     fun clearError() {
-        _error.value = null
+        _uiState.value = _uiState.value.copy(error = null, showValidationError = false)
     }
 }

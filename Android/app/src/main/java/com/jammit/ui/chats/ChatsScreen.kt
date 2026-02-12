@@ -9,9 +9,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import com.jammit.data.UnreadStore
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -38,6 +40,14 @@ fun ChatsScreen(
     val chats by chatsViewModel.chats.collectAsState()
     val isLoading by chatsViewModel.isLoading.collectAsState()
     val error by chatsViewModel.error.collectAsState()
+
+    LaunchedEffect(chats) {
+        if (chats.isNotEmpty()) {
+            UnreadStore.updateFromChatsList(
+                chats.map { UnreadStore.ChatInfo(it.id, it.lastMessageTimestamp) }
+            )
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Text(

@@ -1,5 +1,6 @@
 package com.jammit.ui.userprofile
 
+import com.jammit.data.model.Chat
 import com.jammit.data.model.User
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -11,11 +12,13 @@ import kotlin.math.*
 import com.jammit.network.RetrofitClient
 import com.jammit.repository.UserRepository
 import com.jammit.repository.ExploreRepository
+import com.jammit.repository.ChatsRepository
 
 class UserProfileViewModel(
     private val userId: String,
     private val userRepository: UserRepository = UserRepository(RetrofitClient.apiService),
     private val exploreRepository: ExploreRepository = ExploreRepository(RetrofitClient.apiService),
+    private val chatsRepository: ChatsRepository = ChatsRepository(RetrofitClient.apiService),
     private val currentUserId: String
 ) : ViewModel() {
     private val _user = MutableStateFlow<User?>(null)
@@ -85,6 +88,12 @@ class UserProfileViewModel(
 
     fun clearError() {
         _error.value = null
+    }
+
+    suspend fun findOrCreateChat(): Result<Chat> {
+        val result = chatsRepository.findOrCreateChat(currentUserId, userId)
+        result.onFailure { _error.value = it.message ?: "Failed to open chat" }
+        return result
     }
 }
 

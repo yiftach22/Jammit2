@@ -97,6 +97,9 @@ export class UsersService {
     if (updateUserDto.longitude !== undefined) {
       user.longitude = updateUserDto.longitude;
     }
+    if (updateUserDto.fcmToken !== undefined) {
+      user.fcmToken = updateUserDto.fcmToken;
+    }
 
     try {
       await this.userRepository.save(user);

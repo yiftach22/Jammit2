@@ -15,6 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.jammit.data.model.MusicianLevel
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -149,8 +151,15 @@ fun UserProfileScreen(
                 Spacer(modifier = Modifier.height(32.dp))
 
                 // Chat Button
+                val scope = rememberCoroutineScope()
                 Button(
-                    onClick = { onChatClick(userId) },
+                    onClick = {
+                        scope.launch {
+                            userProfileViewModel.findOrCreateChat()
+                                .onSuccess { chat -> onChatClick(chat.id) }
+                                .onFailure { userProfileViewModel.clearError(); /* error already in VM */ }
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Chat")

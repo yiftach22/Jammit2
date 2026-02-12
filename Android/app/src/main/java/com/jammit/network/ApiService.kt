@@ -67,6 +67,12 @@ interface ApiService {
 
     @POST("chats")
     suspend fun findOrCreateChat(@Body request: CreateChatRequest): Response<ChatResponse>
+
+    @GET("chats/{userId}/{chatId}/messages")
+    suspend fun getMessages(
+        @Path("userId") userId: String,
+        @Path("chatId") chatId: String,
+    ): Response<List<MessageResponse>>
 }
 
 // Request DTOs
@@ -98,7 +104,8 @@ data class UpdateUserRequest(
     val username: String? = null,
     val instruments: List<InstrumentWithLevelRequest>? = null,
     val latitude: Double? = null,
-    val longitude: Double? = null
+    val longitude: Double? = null,
+    val fcmToken: String? = null
 )
 
 // Response DTOs
@@ -147,4 +154,12 @@ data class ChatResponse(
     val lastMessageTimestamp: Long? = null,
     val createdAt: String,
     val updatedAt: String
+)
+
+data class MessageResponse(
+    val id: String,
+    val chatId: String,
+    val senderId: String,
+    val content: String,
+    val createdAt: String
 )

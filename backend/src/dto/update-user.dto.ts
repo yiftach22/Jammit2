@@ -33,4 +33,8 @@ export class UpdateUserDto {
 
   @IsOptional()
   longitude?: number;
+
+  @IsString()
+  @IsOptional()
+  fcmToken?: string;
 }

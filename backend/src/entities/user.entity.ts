@@ -32,6 +32,9 @@ export class User {
   @Column('decimal', { precision: 11, scale: 8, nullable: true })
   longitude: number;
 
+  @Column({ nullable: true, name: 'fcm_token' })
+  fcmToken: string;
+
   @OneToMany(() => InstrumentWithLevel, (instrument) => instrument.user, {
     cascade: true,
     eager: true,

@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Chat } from '../../entities/chat.entity';
 import { User } from '../../entities/user.entity';
+import { Message } from '../../entities/message.entity';
 
 @Injectable()
 export class ChatsService {
@@ -11,6 +12,8 @@ export class ChatsService {
     private chatRepository: Repository<Chat>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(Message)
+    private messageRepository: Repository<Message>,
   ) {}
 
   async findAllForUser(userId: string): Promise<Chat[]> {
@@ -75,5 +78,54 @@ export class ChatsService {
     }
 
     return chat;
+  }
+
+  /** Returns recipient userId and sender username for new_message notification. */
+  async getRecipientForChat(chatId: string, senderId: string): Promise<{ recipientUserId: string; senderUsername: string } | null> {
+    const chat = await this.chatRepository.findOne({
+      where: { id: chatId },
+      relations: ['user1', 'user2'],
+    });
+    if (!chat) return null;
+    const recipient = chat.user1Id === senderId ? chat.user2 : chat.user1;
+    const sender = chat.user1Id === senderId ? chat.user1 : chat.user2;
+    return recipient && sender ? { recipientUserId: recipient.id, senderUsername: sender.username } : null;
+  }
+
+  async getMessages(chatId: string, userId: string): Promise<Message[]> {
+    const chat = await this.findOne(chatId, userId);
+    if (!chat) return [];
+
+    return this.messageRepository.find({
+      where: { chatId: chat.id },
+      order: { createdAt: 'ASC' },
+    });
+  }
+
+  async createMessage(chatId: string, senderId: string, content: string): Promise<Message> {
+    const chat = await this.chatRepository.findOne({
+      where: [
+        { id: chatId, user1Id: senderId },
+        { id: chatId, user2Id: senderId },
+      ],
+    });
+    if (!chat) {
+      throw new NotFoundException('Chat not found or access denied');
+    }
+
+    const message = this.messageRepository.create({
+      chatId,
+      senderId,
+      content: content.trim(),
+    });
+    const saved = await this.messageRepository.save(message);
+
+    const now = Date.now();
+    await this.chatRepository.update(chat.id, {
+      lastMessage: saved.content.substring(0, 200),
+      lastMessageTimestamp: now,
+    });
+
+    return saved;
   }
 }

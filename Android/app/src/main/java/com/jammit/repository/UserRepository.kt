@@ -48,6 +48,16 @@ class UserRepository(private val apiService: ApiService) {
         }
     }
 
+    suspend fun updateFcmToken(userId: String, fcmToken: String): Result<Unit> {
+        return try {
+            val response = apiService.updateUser(userId, UpdateUserRequest(fcmToken = fcmToken))
+            if (response.isSuccessful) Result.success(Unit)
+            else Result.failure(Exception("Failed to register for notifications: ${response.message()}"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun updateUser(id: String, user: User): Result<User> {
         return try {
             val request = UserMapper.toUpdateUserRequest(user)

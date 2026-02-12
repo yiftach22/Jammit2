@@ -1,9 +1,13 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // WebSocket (Socket.io) adapter for chat
+  app.useWebSocketAdapter(new IoAdapter(app));
 
   // Enable CORS for frontend
   app.enableCors({

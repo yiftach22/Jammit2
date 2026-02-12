@@ -7,7 +7,7 @@ import {
   Max,
   IsUUID,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { MusicianLevel } from '../entities/musician-level.enum';
 
 export class ExploreFiltersDto {
@@ -17,6 +17,15 @@ export class ExploreFiltersDto {
   @IsOptional()
   currentUserId?: string;
 
+  @Transform(({ value }) => {
+    if (value == null) return undefined;
+    if (Array.isArray(value)) return value;
+    const s = String(value).trim();
+    if (!s) return undefined;
+    return s.includes(',')
+      ? s.split(',').map((x) => x.trim()).filter(Boolean)
+      : [s];
+  })
   @IsArray()
   @IsString({ each: true })
   @IsOptional()

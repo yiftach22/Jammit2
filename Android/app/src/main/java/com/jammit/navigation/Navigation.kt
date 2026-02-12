@@ -1,6 +1,9 @@
 package com.jammit.navigation
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Person
@@ -25,6 +28,15 @@ import com.jammit.ui.explore.ExploreScreen
 import com.jammit.ui.instruments.EditInstrumentsScreen
 import com.jammit.ui.profile.ProfileScreen
 import com.jammit.ui.userprofile.UserProfileScreen
+import com.jammit.data.UnreadStore
+import com.jammit.network.ChatNotificationManager
+import com.jammit.network.RetrofitClient
+import com.jammit.repository.UserRepository
+import androidx.activity.ComponentActivity
+import androidx.compose.ui.platform.LocalContext
+import com.jammit.data.SessionManager
+import com.google.firebase.messaging.FirebaseMessaging
+import kotlinx.coroutines.tasks.await
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,6 +52,34 @@ fun MainNavigation(
         NavRoute.Explore.route,
         NavRoute.Chats.route
     )
+    val context = LocalContext.current
+
+    LaunchedEffect(currentRoute) {
+        val uid = SessionManager.getUserId(context)
+        if (!uid.isNullOrBlank() && currentRoute != NavRoute.Login.route) {
+            ChatNotificationManager.connect(context, uid)
+            try {
+                val token = FirebaseMessaging.getInstance().token.await()
+                if (token.isNotBlank()) {
+                    UserRepository(RetrofitClient.apiService).updateFcmToken(uid, token)
+                }
+            } catch (_: Exception) { }
+        } else if (currentRoute == NavRoute.Login.route) {
+            ChatNotificationManager.disconnect()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val activity = context as? ComponentActivity
+        if (SessionManager.getUserId(context).isNullOrBlank()) return@LaunchedEffect
+        val chatId = activity?.intent?.getStringExtra("navigate_to_chat")
+            ?: activity?.intent?.getStringExtra("chatId")
+        if (chatId != null) {
+            activity?.intent?.removeExtra("navigate_to_chat")
+            activity?.intent?.removeExtra("chatId")
+            navController.navigate(NavRoute.ChatDetail.createRoute(chatId))
+        }
+    }
 
     Scaffold(
         bottomBar = {
@@ -158,9 +198,8 @@ fun MainNavigation(
                 val userId = backStackEntry.arguments?.getString("userId") ?: return@composable
                 UserProfileScreen(
                     userId = userId,
-                    onChatClick = { targetUserId ->
-                        // Navigate to chat - in a real app, you'd need to find or create a chat ID
-                        navController.navigate(NavRoute.ChatDetail.createRoute("chat_$targetUserId"))
+                    onChatClick = { chatId ->
+                        navController.navigate(NavRoute.ChatDetail.createRoute(chatId))
                     }
                 )
             }
@@ -170,12 +209,21 @@ fun MainNavigation(
                 arguments = listOf(navArgument("chatId") { type = NavType.StringType })
             ) { backStackEntry ->
                 val chatId = backStackEntry.arguments?.getString("chatId") ?: return@composable
-                ChatDetailScreen(chatId = chatId)
+                val ctx = androidx.compose.ui.platform.LocalContext.current
+                val currentUserId = remember { com.jammit.data.SessionManager.getUserId(ctx) } ?: ""
+                if (currentUserId.isBlank()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("You must be logged in to view the chat.")
+                    }
+                } else {
+                    ChatDetailScreen(chatId = chatId, currentUserId = currentUserId)
+                }
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BottomNavigationBar(navController: androidx.navigation.NavController) {
     val items = listOf(
@@ -183,14 +231,33 @@ fun BottomNavigationBar(navController: androidx.navigation.NavController) {
         BottomNavItem(NavRoute.Explore.route, "Explore", Icons.Default.Search),
         BottomNavItem(NavRoute.Chats.route, "Chats", Icons.Default.Chat)
     )
+    val unread by UnreadStore.unreadCount.collectAsState(initial = 0)
 
     NavigationBar {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = navBackStackEntry?.destination?.route
 
         items.forEach { item ->
+            val showBadge = item.route == NavRoute.Chats.route && unread > 0
             NavigationBarItem(
-                icon = { Icon(item.icon, contentDescription = item.label) },
+                icon = {
+                    if (showBadge) {
+                        BadgedBox(
+                            badge = {
+                                Badge {
+                                    Text(
+                                        text = minOf(unread, 99).toString(),
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
+                            }
+                        ) {
+                            Icon(item.icon, contentDescription = item.label)
+                        }
+                    } else {
+                        Icon(item.icon, contentDescription = item.label)
+                    }
+                },
                 label = { Text(item.label) },
                 selected = currentRoute == item.route,
                 onClick = {

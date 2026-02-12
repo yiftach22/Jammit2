@@ -9,10 +9,13 @@ import android.content.pm.PackageManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
@@ -20,6 +23,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
@@ -257,18 +261,20 @@ fun ExploreScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         FilterChip(
                             selected = filters.selectedLevel == null,
-                                onClick = { exploreViewModel.updateFilters(filters.copy(selectedLevel = null)) },
+                            onClick = { exploreViewModel.updateFilters(filters.copy(selectedLevel = null)) },
                             label = { Text("All") }
                         )
                         MusicianLevel.values().forEach { level ->
                             FilterChip(
                                 selected = filters.selectedLevel == level,
-                                    onClick = { exploreViewModel.updateFilters(filters.copy(selectedLevel = level)) },
+                                onClick = { exploreViewModel.updateFilters(filters.copy(selectedLevel = level)) },
                                 label = { Text(level.name.take(3)) }
                             )
                         }
@@ -277,42 +283,78 @@ fun ExploreScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     // Instrument Filter
-                    Text(
-                        text = "Instruments",
-                        style = MaterialTheme.typography.titleMedium
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Instruments",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            TextButton(onClick = {
+                                exploreViewModel.updateFilters(
+                                    filters.copy(selectedInstruments = availableInstruments.toSet())
+                                )
+                            }) {
+                                Text("Select all", style = MaterialTheme.typography.labelLarge)
+                            }
+                            TextButton(onClick = {
+                                exploreViewModel.updateFilters(
+                                    filters.copy(selectedInstruments = emptySet())
+                                )
+                            }) {
+                                Text("Clear", style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
-                    availableInstruments.forEach { instrument ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .selectable(
-                                    selected = instrument in filters.selectedInstruments,
-                                    onClick = {
-                                        val newSelection = if (instrument in filters.selectedInstruments) {
-                                            filters.selectedInstruments - instrument
-                                        } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(240.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        availableInstruments.forEach { instrument ->
+                            val label = instrument.name.ifBlank { "(no name)" }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .selectable(
+                                        selected = instrument in filters.selectedInstruments,
+                                        onClick = {
+                                            val newSelection = if (instrument in filters.selectedInstruments) {
+                                                filters.selectedInstruments - instrument
+                                            } else {
+                                                filters.selectedInstruments + instrument
+                                            }
+                                            exploreViewModel.updateFilters(filters.copy(selectedInstruments = newSelection))
+                                        }
+                                    )
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = instrument in filters.selectedInstruments,
+                                    onCheckedChange = { checked ->
+                                        val newSelection = if (checked) {
                                             filters.selectedInstruments + instrument
+                                        } else {
+                                            filters.selectedInstruments - instrument
                                         }
                                         exploreViewModel.updateFilters(filters.copy(selectedInstruments = newSelection))
                                     }
                                 )
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = instrument in filters.selectedInstruments,
-                                onCheckedChange = { checked ->
-                                    val newSelection = if (checked) {
-                                        filters.selectedInstruments + instrument
-                                    } else {
-                                        filters.selectedInstruments - instrument
-                                    }
-                                    exploreViewModel.updateFilters(filters.copy(selectedInstruments = newSelection))
-                                }
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(text = instrument.name)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = label,
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            }
                         }
                     }
                 }

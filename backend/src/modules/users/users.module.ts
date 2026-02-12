@@ -5,6 +5,7 @@ import { InstrumentWithLevel } from '../../entities/instrument-with-level.entity
 import { Instrument } from '../../entities/instrument.entity';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
+import { PushService } from './push.service';
 import { InstrumentsModule } from '../instruments/instruments.module';
 
 @Module({
@@ -13,7 +14,7 @@ import { InstrumentsModule } from '../instruments/instruments.module';
     InstrumentsModule,
   ],
   controllers: [UsersController],
-  providers: [UsersService],
-  exports: [UsersService],
+  providers: [UsersService, PushService],
+  exports: [UsersService, PushService],
 })
 export class UsersModule {}

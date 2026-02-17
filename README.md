@@ -1,4 +1,4 @@
-A new version of the Jammit app, now used mainly AI tools (Curosr) for build and design.
+A new version of the Jammit app, now using mainly AI tools (Curosr) for build and design.
 
 Frontend moved to use the more modern Jetpack Compose architechture.
 

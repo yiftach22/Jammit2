@@ -8,10 +8,19 @@ let messaging: { send: (msg: unknown) => Promise<string> } | null = null;
 function getMessaging() {
   if (messaging) return messaging;
   try {
-    if (!process.env.GOOGLE_APPLICATION_CREDENTIALS && !process.env.FIREBASE_SERVICE_ACCOUNT_PATH) return null;
     const admin = require('firebase-admin');
-    if (!admin.apps?.length) {
+    if (admin.apps?.length) {
+      messaging = admin.messaging();
+      return messaging;
+    }
+    const json = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    if (json) {
+      const cred = JSON.parse(json);
+      admin.initializeApp({ credential: admin.credential.cert(cred) });
+    } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
       admin.initializeApp();
+    } else {
+      return null;
     }
     messaging = admin.messaging();
     return messaging;

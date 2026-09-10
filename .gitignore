@@ -60,7 +60,7 @@ captures/
 .cxx/
 
 # Google Services (e.g. APIs or Firebase)
-# google-services.json
+google-services.json
 
 # Freeline
 freeline.py
@@ -86,4 +86,10 @@ lint/tmp/
 
 # Android Profiling
 *.hprof
+
+
+.DS_Store
+Android/.DS_Store
+Android/app/.DS_Store
+
 

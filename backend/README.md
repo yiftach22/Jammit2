@@ -110,7 +110,5 @@ npm run test:e2e
 
 ## Notes
 
-- Authentication is currently mocked (no real implementation)
-- Messages functionality is not implemented yet
 - Location-based search uses Haversine formula for distance calculation
 - Database schema auto-syncs in development mode (set `NODE_ENV=production` to disable)
